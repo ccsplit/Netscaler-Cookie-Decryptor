@@ -3,7 +3,7 @@
 
 """
 Netscaler Cookie Decryptor - decrypts Netscaler load balancer persistence cookies
-Copyright (C) 2012  Adam Maxwell - catalyst256@gmail.com 
+Copyright (C) 2012  Adam Maxwell - catalyst256@gmail.com
 Nick: @catalyst256
 Blog: itgeekchronicles.co.uk
 
@@ -31,12 +31,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 @version: 0.3.1
 
 """
-
+from __future__ import print_function
 import sys
 import re
-import string
-from string import maketrans, ascii_letters
 
+if hasattr(bytes, 'maketrans'):
+    maketrans = bytes.maketrans
+else:
+    # Python 2.x
+    from string import maketrans
 
 
 def parseCookie(cookie):
@@ -44,26 +47,37 @@ def parseCookie(cookie):
     @param cookie: Citrix NetScaler cookie
     @return: Returns ServiceName, ServerIP and ServerPort
     """
-    s = re.search('NSC_([a-zA-Z0-9\-\_\.]*)=[0-9a-f]{8}([0-9a-f]{8}).*([0-9a-f]{4})$',cookie)
+    s = re.search(
+        'NSC_([a-zA-Z0-9\-\_\.]*)=[0-9a-f]{8}([0-9a-f]{8}).*([0-9a-f]{4})$',
+        cookie)
     if s is not None:
-        servicename = s.group(1) # first group is name ([a-z\-]*)
+        servicename = s.group(1)  # first group is name ([a-z\-]*)
         serverip = int(s.group(2), 16)
+        print("Server ip: {0:X} ({0})".format(serverip))
         serverport = int(s.group(3), 16)
+        print("Server port: {0:X} ({0})".format(serverport))
     else:
         raise Exception('Could not parse cookie')
     return servicename, serverip, serverport
 
+
 def decryptServiceName(servicename):
-    """Decrypts the Caesar Subsitution Cipher Encryption used on the Netscaler Cookie Name
+    """
+    Decrypts the Caesar Subsitution Cipher Encryption used on the
+    Netscaler Cookie Name
     @param cookie Citrix NetScaler cookie
     @type cookie: String
     @return: service name
     """
-    #This decrypts the Caesar Subsitution Cipher Encryption used on the Netscaler Cookie Name
-    trans = maketrans('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ','zabcdefghijklmnopqrstuvwxyZABCDEFGHIJKLMNOPQRSTUVWXY')
+    # This decrypts the Caesar Subsitution Cipher Encryption
+    # used on the Netscaler Cookie Name
+    trans = maketrans(
+        b'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        b'zabcdefghijklmnopqrstuvwxyZABCDEFGHIJKLMNOPQRSTUVWXY')
     realname = servicename.translate(trans)
     return realname
-        
+
+
 def decryptServerIP(serverip):
     """Decrypts the XOR encryption used for the Netscaler Server IP
     @param cookie Citrix NetScaler cookie
@@ -71,21 +85,26 @@ def decryptServerIP(serverip):
     @return: XORed server IP based on ipkey
     """
     ipkey = 0x03081e11
-    decodedip = hex (serverip ^ ipkey)
+    decodedip = hex(serverip ^ ipkey)
+    print("Decoded IP: {0} ({0:X})".format(int(decodedip, 16)))
     t = decodedip[2:10].zfill(8)
-    realip = '.'.join(str(int(i, 16)) for i in([t[i:i+2] for i in range(0, len(t), 2)]))
+    realip = '.'.join(str(int(i, 16)) for i in(
+        [t[i:i+2] for i in range(0, len(t), 2)]))
     return realip
-        
+
+
 def decryptServerPort(serverport):
     """Decrypts the XOR encryption used on the Netscaler Server Port
     @param cookie Citrix NetScaler cookie
     @type cookie: String
     @return: XORed server port
-    """    
+    """
     portkey = 0x3630
-    decodedport = serverport ^ portkey #no need to convert to hex since an integer will do for port
+    # no need to convert to hex since an integer will do for port
+    decodedport = serverport ^ portkey
     realport = str(decodedport)
     return realport
+
 
 def decryptCookie(cookie):
     """Make entire decryption of Citrix NetScaler cookie
@@ -96,17 +115,18 @@ def decryptCookie(cookie):
     realname = decryptServiceName(servicename)
     realip = decryptServerIP(serverip)
     realport = decryptServerPort(serverport)
-    return realname,realip,realport
+    return realname, realip, realport
+
 
 if __name__ == '__main__':
-    
+
     if len(sys.argv) != 2:
-        print "USAGE: %s NetScalerCookie" % sys.argv[0]
+        print("USAGE: %s NetScalerCookie" % sys.argv[0])
         sys.exit(1)
-    
+
     cookie = sys.argv[1]
-    realname,realip,realport = decryptCookie(cookie)
-    
-    print 'vServer Name=%s' %realname
-    print 'vServer IP=%s' %realip
-    print 'vServer Port=%s' %realport
+    realname, realip, realport = decryptCookie(cookie)
+
+    print('vServer Name=%s' % realname)
+    print('vServer IP=%s' % realip)
+    print('vServer Port=%s' % realport)
